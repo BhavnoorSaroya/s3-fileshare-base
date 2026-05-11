@@ -1,4 +1,8 @@
-# s3 file sharing base 
+# S3 file sharing base 
+
+Meant for internal company use to quickly share files via user defined namespaces in an S3 bucket. Can be adapted for public use as well by adding an auth layer and assigning UUIDs for each namespace. 
+
+The frontend is untested.  
 
 To install dependencies:
 
@@ -11,5 +15,3 @@ To run:
 ```bash
 bun run index.ts
 ```
-
-This project was created using `bun init` in bun v1.2.21. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
