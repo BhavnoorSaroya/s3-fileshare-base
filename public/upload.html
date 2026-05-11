@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <title>Upload</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <div class="container" id="app">
+      <div class="panel chrome">
+        <h1>Upload files</h1>
+        <p id="nsLabel"></p>
+      </div>
+
+      <div class="panel">
+        <div class="dropzone" id="dropzone">
+          <h2>Drag and drop files</h2>
+          <p>or choose files from your device</p>
+          <input id="fileInput" type="file" multiple />
+        </div>
+        <p class="small" id="uploadHint"></p>
+      </div>
+
+      <div class="panel chrome">
+        <h2>Files in this namespace</h2>
+        <div class="file-list" id="fileList"></div>
+      </div>
+    </div>
+
+    <div class="toast-wrap" id="toasts"></div>
+    <script type="module" src="/upload.js"></script>
+  </body>
+</html>
