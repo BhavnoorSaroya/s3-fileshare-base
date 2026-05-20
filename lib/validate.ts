@@ -18,7 +18,23 @@ export function sanitizeFilename(name: string): string {
     .slice(0, 180);
 }
 
-export function buildObjectKey(id: string, filename: string): string {
+export function sanitizePath(filepath: string): string {
+  const segments = filepath.split(/[/\\]/).filter(Boolean);
+  const sanitized = segments.map((seg, i) => {
+    const clean = seg
+      .replace(/[^\w.\-() ]+/g, "_")
+      .replace(/\s+/g, " ")
+      .slice(0, 180);
+    return i === segments.length - 1 && !clean.includes(".") ? clean || "file" : clean || "file";
+  });
+  return sanitized.join("/");
+}
+
+export function buildObjectKey(id: string, filename: string, filepath?: string): string {
+  if (filepath) {
+    const safe = sanitizePath(filepath);
+    return `${id}/${safe}`;
+  }
   const safe = sanitizeFilename(filename);
   return `${id}/${safe}`;
 }
@@ -26,13 +42,15 @@ export function buildObjectKey(id: string, filename: string): string {
 export function assertValidUpload(input: {
   id: string;
   filename: string;
+  filepath?: string;
   contentType?: string;
 }) {
   if (!isValidNamespaceId(input.id)) {
     throw new Error("Invalid namespace id");
   }
 
-  const safe = sanitizeFilename(input.filename);
+  const filepath = input.filepath || input.filename;
+  const safe = sanitizePath(filepath);
   if (!safe || safe === "." || safe === "..") {
     throw new Error("Invalid filename");
   }

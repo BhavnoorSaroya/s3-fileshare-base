@@ -1,3 +1,4 @@
+/* comment here */
 :root {
   --bg: #0b102013;
   --panel: #1219331a;
@@ -116,7 +117,7 @@ input[type="file"]::file-selector-button {
 
 .toast {
   width: 280px;
-  background: #10172d;
+  background: #a6abbb;
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 12px;
@@ -144,4 +145,88 @@ input[type="file"]::file-selector-button {
 .small {
   font-size: 13px;
   color: var(--muted);
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.delete-btn {
+  background: var(--danger);
+  border: 0;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.delete-btn {
+  background: var(--danger);
+  border: 0;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.delete-btn {
+  background: var(--danger);
+  border: 0;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.delete-btn {
+  background: var(--danger);
+  border: 0;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }

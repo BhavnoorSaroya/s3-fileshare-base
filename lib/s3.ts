@@ -79,3 +79,7 @@ export async function signGetUrl(params: {
 
   return url;
 }
+
+export async function deleteObject(key: string) {
+  await s3.delete(key);
+}

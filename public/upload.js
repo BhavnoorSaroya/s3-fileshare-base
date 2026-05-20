@@ -8,8 +8,8 @@ if (inIframe) {
 document.getElementById("nsLabel").textContent = `Namespace ${id}`;
 document.getElementById("uploadHint").textContent =
   inIframe
-    ? "Drop files here to upload"
-    : "Files upload directly to object storage using short-lived signed URLs.";
+    ? "Drop files or folders here to upload"
+    : "Files upload directly to object storage using short-lived signed URLs. Folders preserve their directory structure.";
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
@@ -68,15 +68,54 @@ async function loadFiles() {
         <div class="file-name">${file.name}</div>
         <div class="file-sub">${formatBytes(file.size)} • ${new Date(file.lastModified).toLocaleString()}</div>
       </div>
-      <div>
-        <a href="/${id}/" style="color: var(--accent)">View</a>
+      <div class="file-actions">
+      <!--  <a href="/${id}/" style="color: var(--accent)">View</a> -->
+        <button class="delete-btn" data-filename="${file.name}">Delete</button>
       </div>
     `;
     fileList.appendChild(row);
   }
+
+  fileList.querySelectorAll(".delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const filename = btn.dataset.filename;
+      if (!confirm(`Delete "${filename}"?`)) return;
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      try {
+        const res = await fetch(`/api/delete/${id}/${encodeURIComponent(filename)}`, { method: "POST" });
+        if (!res.ok) throw new Error("Delete failed");
+        await loadFiles();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = "Delete";
+      }
+    });
+  });
 }
 
+  fileList.querySelectorAll(".delete-btn").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const filename = btn.dataset.filename;
+      if (!confirm(`Delete "${filename}"?`)) return;
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      try {
+        const res = await fetch(`/api/delete/${id}/${encodeURIComponent(filename)}`, { method: "POST" });
+        if (!res.ok) throw new Error("Delete failed");
+        await loadFiles();
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
+        btn.textContent = "Delete";
+      }
+    });
+  });
+
+
 async function signUpload(file) {
+  const filepath = file._relativePath || file.webkitRelativePath || file.name;
   const res = await fetch("/api/sign-upload", {
     method: "POST",
     headers: {
@@ -85,6 +124,7 @@ async function signUpload(file) {
     body: JSON.stringify({
       id,
       filename: file.name,
+      filepath,
       contentType: file.type || "application/octet-stream",
     }),
   });
@@ -123,7 +163,8 @@ function uploadWithProgress(url, file, headers, t) {
 
 async function handleFiles(files) {
   for (const file of files) {
-    const t = toast(`Uploading ${file.name}`, "Preparing upload...");
+    const displayName = file.webkitRelativePath || file.name;
+    const t = toast(`Uploading ${displayName}`, "Preparing upload...");
     try {
       const signed = await signUpload(file);
       await uploadWithProgress(signed.putUrl, file, signed.headers, t);
@@ -135,6 +176,70 @@ async function handleFiles(files) {
   await loadFiles();
 }
 
+async function readDirectoryEntry(dirEntry) {
+  const files = [];
+  const reader = dirEntry.createReader();
+  const readEntries = () => {
+    return new Promise((resolve) => {
+      reader.readEntries((entries) => {
+        resolve(entries);
+      });
+    });
+  };
+
+  let allEntries = [];
+  while (true) {
+    const entries = await readEntries();
+    if (entries.length === 0) break;
+    allEntries = allEntries.concat(entries);
+  }
+
+  for (const entry of allEntries) {
+    if (entry.isFile) {
+      const file = await new Promise((resolve) => {
+        entry.file(resolve);
+      });
+      file._relativePath = entry.fullPath.replace(/^\//, "");
+      files.push(file);
+    } else if (entry.isDirectory) {
+      const subFiles = await readDirectoryEntry(entry);
+      files.push(...subFiles);
+    }
+  }
+  return files;
+}
+
+async function getDroppedFiles(dataTransfer) {
+  const files = [];
+  const items = dataTransfer.items;
+
+  if (items) {
+    const entries = [];
+    for (let i = 0; i < items.length; i++) {
+      const entry = items[i].webkitGetAsEntry?.();
+      if (entry) entries.push(entry);
+    }
+
+    if (entries.length > 0) {
+      for (const entry of entries) {
+        if (entry.isFile) {
+          const file = await new Promise((resolve) => {
+            entry.file(resolve);
+          });
+          file._relativePath = entry.fullPath.replace(/^\//, "");
+          files.push(file);
+        } else if (entry.isDirectory) {
+          const dirFiles = await readDirectoryEntry(entry);
+          files.push(...dirFiles);
+        }
+      }
+      return files;
+    }
+  }
+
+  return [...dataTransfer.files];
+}
+
 dropzone.addEventListener("dragover", (e) => {
   e.preventDefault();
   dropzone.classList.add("dragover");
@@ -144,10 +249,10 @@ dropzone.addEventListener("dragleave", () => {
   dropzone.classList.remove("dragover");
 });
 
-dropzone.addEventListener("drop", (e) => {
+dropzone.addEventListener("drop", async (e) => {
   e.preventDefault();
   dropzone.classList.remove("dragover");
-  const files = [...e.dataTransfer.files];
+  const files = await getDroppedFiles(e.dataTransfer);
   if (files.length) handleFiles(files);
 });
 

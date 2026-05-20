@@ -2,7 +2,7 @@ const id = location.pathname.split("/").filter(Boolean)[0];
 if (!id || !/^\d{4,5}$/.test(id)) {
   document.getElementById("nsLabel").textContent = "You need to access this page via a Google Sheet";
 } else {
-  document.getElementById("nsLabel").textContent = `Namespace ${id}`;
+  document.getElementById("nsLabel").textContent = `QR code ${id}`;
 }
 
 const fileList = document.getElementById("fileList");

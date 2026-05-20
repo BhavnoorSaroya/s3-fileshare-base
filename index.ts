@@ -1,5 +1,5 @@
 import { assertValidUpload, buildObjectKey, isValidNamespaceId } from "./lib/validate";
-import { listPrefix, signGetUrl, signPutUrl } from "./lib/s3";
+import { listPrefix, signGetUrl, signPutUrl, deleteObject } from "./lib/s3";
 
 const port = Number(Bun.env.PORT || 3000);
 const maxFileSize = Number(Bun.env.MAX_FILE_SIZE || 100 * 1024 * 1024);
@@ -92,11 +92,13 @@ Bun.serve({
           body as {
             id: string;
             filename: string;
+            filepath?: string;
             contentType?: string;
           },
         );
 
-        const key = buildObjectKey(id, filename);
+        const filepath = (body as { filepath?: string }).filepath;
+        const key = buildObjectKey(id, filename, filepath);
 
         const putUrl = await signPutUrl({
           key,
@@ -120,6 +122,29 @@ Bun.serve({
             ? err.message
             : "Invalid upload request",
         );
+      }
+    }
+
+    // DELETE FILE
+    if (pathname.startsWith("/api/delete/") && req.method === "POST") {
+      const parts = pathname.split("/").filter(Boolean);
+      if (parts.length < 4) {
+        return badRequest("Invalid delete path");
+      }
+
+      const id = parts[2];
+      if (!id || !isValidNamespaceId(id)) {
+        return badRequest("Invalid namespace id");
+      }
+
+      const name = decodeURIComponent(parts.slice(3).join("/"));
+      const key = buildObjectKey(id, name);
+
+      try {
+        await deleteObject(key);
+        return json({ success: true });
+      } catch (err) {
+        return json({ error: err instanceof Error ? err.message : "Delete failed" }, { status: 500 });
       }
     }
 
@@ -184,4 +209,4 @@ Bun.serve({
   },
 });
 
-console.log(`Listening on http://localhost:${port}`);
+console.log(`New app on http://localhost:${port}`);
