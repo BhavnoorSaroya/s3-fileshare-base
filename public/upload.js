@@ -9,7 +9,7 @@ document.getElementById("nsLabel").textContent = `Namespace ${id}`;
 document.getElementById("uploadHint").textContent =
   inIframe
     ? "Drop files or folders here to upload"
-    : "Files upload directly to object storage using short-lived signed URLs. Folders preserve their directory structure.";
+    : "Files upload directly to object storage using short-lived, signed, upload URLs.";
 
 const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");

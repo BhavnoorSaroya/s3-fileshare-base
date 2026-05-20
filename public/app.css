@@ -31,6 +31,15 @@ body {
   max-width: 860px;
   margin: 0 auto;
   padding: 16px;
+  .titlebar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  img{
+    max-width: 100px;
+    height: auto;
+  }
+  }
 }
 
 .panel {
