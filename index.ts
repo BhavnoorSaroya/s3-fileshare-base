@@ -80,73 +80,73 @@ Bun.serve({
     }
 
     // SIGN UPLOAD
-    if (pathname === "/api/sign-upload" && req.method === "POST") {
-      const body: unknown = await req.json().catch(() => null);
+    // if (pathname === "/api/sign-upload" && req.method === "POST") {
+    //   const body: unknown = await req.json().catch(() => null);
 
-      if (!body || typeof body !== "object") {
-        return badRequest("Invalid JSON");
-      }
+    //   if (!body || typeof body !== "object") {
+    //     return badRequest("Invalid JSON");
+    //   }
 
-      try {
-        const { id, filename, contentType } = assertValidUpload(
-          body as {
-            id: string;
-            filename: string;
-            filepath?: string;
-            contentType?: string;
-          },
-        );
+    //   try {
+    //     const { id, filename, contentType } = assertValidUpload(
+    //       body as {
+    //         id: string;
+    //         filename: string;
+    //         filepath?: string;
+    //         contentType?: string;
+    //       },
+    //     );
 
-        const filepath = (body as { filepath?: string }).filepath;
-        const key = buildObjectKey(id, filename, filepath);
+    //     const filepath = (body as { filepath?: string }).filepath;
+    //     const key = buildObjectKey(id, filename, filepath);
 
-        const putUrl = await signPutUrl({
-          key,
-          contentType,
-          expiresIn: signedUrlTTL,
-        });
+    //     const putUrl = await signPutUrl({
+    //       key,
+    //       contentType,
+    //       expiresIn: signedUrlTTL,
+    //     });
 
-        return json({
-          id,
-          key,
-          putUrl,
-          headers: {
-            "content-type": contentType,
-          },
-          maxFileSize,
-          expiresIn: signedUrlTTL,
-        });
-      } catch (err) {
-        return badRequest(
-          err instanceof Error
-            ? err.message
-            : "Invalid upload request",
-        );
-      }
-    }
+    //     return json({
+    //       id,
+    //       key,
+    //       putUrl,
+    //       headers: {
+    //         "content-type": contentType,
+    //       },
+    //       maxFileSize,
+    //       expiresIn: signedUrlTTL,
+    //     });
+    //   } catch (err) {
+    //     return badRequest(
+    //       err instanceof Error
+    //         ? err.message
+    //         : "Invalid upload request",
+    //     );
+    //   }
+    // }
 
     // DELETE FILE
-    if (pathname.startsWith("/api/delete/") && req.method === "POST") {
-      const parts = pathname.split("/").filter(Boolean);
-      if (parts.length < 4) {
-        return badRequest("Invalid delete path");
-      }
+    // if (pathname.startsWith("/api/delete/") && req.method === "POST") {
+    //   const parts = pathname.split("/").filter(Boolean);
+    //   if (parts.length < 4) {
+    //     return badRequest("Invalid delete path");
+    //   }
 
-      const id = parts[2];
-      if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
-      }
+    //   const id = parts[2];
+    //   if (!id || !isValidNamespaceId(id)) {
+    //     return badRequest("Invalid namespace id");
+    //   }
 
-      const name = decodeURIComponent(parts.slice(3).join("/"));
-      const key = buildObjectKey(id, name);
+    //   const name = decodeURIComponent(parts.slice(3).join("/"));
+    //   const key = buildObjectKey(id, name);
 
-      try {
-        await deleteObject(key);
-        return json({ success: true });
-      } catch (err) {
-        return json({ error: err instanceof Error ? err.message : "Delete failed" }, { status: 500 });
-      }
-    }
+    //   try {
+    //     await deleteObject(key);
+    //     return json({ success: true });
+    //   } catch (err) {
+    //     return json({ error: err instanceof Error ? err.message : "Delete failed" }, { status: 500 });
+    //   }
+    // }
 
     // DOWNLOAD URL
     if (pathname.startsWith("/api/download-url/")) {
