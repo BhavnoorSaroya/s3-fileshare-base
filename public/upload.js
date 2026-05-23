@@ -16,6 +16,16 @@ const fileInput = document.getElementById("fileInput");
 const toasts = document.getElementById("toasts");
 const fileList = document.getElementById("fileList");
 
+function createFolderPickerInput() {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.setAttribute("webkitdirectory", "");
+  input.style.display = "none";
+  document.body.appendChild(input);
+  return input;
+}
+
 function toast(title, detail) {
   const el = document.createElement("div");
   el.className = "toast";
@@ -94,24 +104,6 @@ async function loadFiles() {
     });
   });
 }
-
-  fileList.querySelectorAll(".delete-btn").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const filename = btn.dataset.filename;
-      if (!confirm(`Delete "${filename}"?`)) return;
-      btn.disabled = true;
-      btn.textContent = "Deleting...";
-      try {
-        const res = await fetch(`/api/delete/${id}/${encodeURIComponent(filename)}`, { method: "POST" });
-        if (!res.ok) throw new Error("Delete failed");
-        await loadFiles();
-      } catch (err) {
-        alert(err.message);
-        btn.disabled = false;
-        btn.textContent = "Delete";
-      }
-    });
-  });
 
 
 async function signUpload(file) {
@@ -221,12 +213,18 @@ async function getDroppedFiles(dataTransfer) {
     }
 
     if (entries.length > 0) {
+      const isSingleFile = entries.length === 1 && entries[0].isFile;
+
       for (const entry of entries) {
         if (entry.isFile) {
           const file = await new Promise((resolve) => {
             entry.file(resolve);
           });
-          file._relativePath = entry.fullPath.replace(/^\//, "");
+          if (isSingleFile) {
+            file._relativePath = file.name;
+          } else {
+            file._relativePath = entry.fullPath.replace(/^\//, "");
+          }
           files.push(file);
         } else if (entry.isDirectory) {
           const dirFiles = await readDirectoryEntry(entry);
@@ -259,6 +257,28 @@ dropzone.addEventListener("drop", async (e) => {
 fileInput.addEventListener("change", () => {
   const files = [...fileInput.files];
   if (files.length) handleFiles(files);
+});
+
+dropzone.addEventListener("click", async (e) => {
+  if (e.target === fileInput) {
+    return;
+  }
+
+  const wantsFolder = e.altKey || e.metaKey;
+  if (!wantsFolder) {
+    fileInput.click();
+    return;
+  }
+
+  const folderInput = createFolderPickerInput();
+  folderInput.addEventListener("change", async () => {
+    const files = [...folderInput.files];
+    if (files.length) {
+      await handleFiles(files);
+    }
+    folderInput.remove();
+  }, { once: true });
+  folderInput.click();
 });
 
 loadFiles();

@@ -20,12 +20,12 @@ export function sanitizeFilename(name: string): string {
 
 export function sanitizePath(filepath: string): string {
   const segments = filepath.split(/[/\\]/).filter(Boolean);
-  const sanitized = segments.map((seg, i) => {
+  const sanitized = segments.map((seg) => {
     const clean = seg
       .replace(/[^\w.\-() ]+/g, "_")
       .replace(/\s+/g, " ")
       .slice(0, 180);
-    return i === segments.length - 1 && !clean.includes(".") ? clean || "file" : clean || "file";
+    return clean || "file";
   });
   return sanitized.join("/");
 }
@@ -33,6 +33,10 @@ export function sanitizePath(filepath: string): string {
 export function buildObjectKey(id: string, filename: string, filepath?: string): string {
   if (filepath) {
     const safe = sanitizePath(filepath);
+    return `${id}/${safe}`;
+  }
+  if (filename.includes("/") || filename.includes("\\")) {
+    const safe = sanitizePath(filename);
     return `${id}/${safe}`;
   }
   const safe = sanitizeFilename(filename);
