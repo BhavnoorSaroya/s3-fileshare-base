@@ -5,6 +5,27 @@ const port = Number(Bun.env.PORT || 3000);
 const maxFileSize = Number(Bun.env.MAX_FILE_SIZE || 100 * 1024 * 1024);
 const signedUrlTTL = Number(Bun.env.SIGNED_URL_TTL_SECONDS || 300);
 
+const allowedOrigins = new Set([
+  "https://bytecamp.ca",
+  "https://www.bytecamp.ca",
+  "https://bikecamp.ca",
+  "https://s3.bikecamp.ca"
+]);
+
+function getCorsHeaders(origin: string | null): Record<string, string> {
+  if (!origin || !allowedOrigins.has(origin)) {
+    return {};
+  }
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+    Vary: "Origin",
+  };
+}
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -55,127 +76,87 @@ Bun.serve({
     const url = new URL(req.url);
     const { pathname } = url;
 
+    const origin = req.headers.get("origin");
+    const corsHeaders = getCorsHeaders(origin);
+
+    // Handle preflight requests
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders,
+      });
+    }
+
+    let response: Response;
+
     // LIST FILES
     if (pathname.startsWith("/api/list/")) {
       const id = pathname.split("/").pop();
 
       if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
+        response = badRequest("Invalid namespace id");
+      } else {
+        const prefix = `${id}/`;
+        const files = await listPrefix(prefix);
+
+        response = json({
+          id,
+          prefix,
+          files: files.map((f) => ({
+            key: f.key,
+            name: f.name,
+            size: f.size,
+            etag: f.etag,
+            lastModified: f.lastModified,
+          })),
+        });
       }
 
-      const prefix = `${id}/`;
-      const files = await listPrefix(prefix);
-
-      return json({
-        id,
-        prefix,
-        files: files.map((f) => ({
-          key: f.key,
-          name: f.name,
-          size: f.size,
-          etag: f.etag,
-          lastModified: f.lastModified,
-        })),
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...Object.fromEntries(response.headers.entries()),
+          ...corsHeaders,
+        },
       });
     }
-
-    // SIGN UPLOAD
-    // if (pathname === "/api/sign-upload" && req.method === "POST") {
-    //   const body: unknown = await req.json().catch(() => null);
-
-    //   if (!body || typeof body !== "object") {
-    //     return badRequest("Invalid JSON");
-    //   }
-
-    //   try {
-    //     const { id, filename, contentType } = assertValidUpload(
-    //       body as {
-    //         id: string;
-    //         filename: string;
-    //         filepath?: string;
-    //         contentType?: string;
-    //       },
-    //     );
-
-    //     const filepath = (body as { filepath?: string }).filepath;
-    //     const key = buildObjectKey(id, filename, filepath);
-
-    //     const putUrl = await signPutUrl({
-    //       key,
-    //       contentType,
-    //       expiresIn: signedUrlTTL,
-    //     });
-
-    //     return json({
-    //       id,
-    //       key,
-    //       putUrl,
-    //       headers: {
-    //         "content-type": contentType,
-    //       },
-    //       maxFileSize,
-    //       expiresIn: signedUrlTTL,
-    //     });
-    //   } catch (err) {
-    //     return badRequest(
-    //       err instanceof Error
-    //         ? err.message
-    //         : "Invalid upload request",
-    //     );
-    //   }
-    // }
-
-    // DELETE FILE
-    // if (pathname.startsWith("/api/delete/") && req.method === "POST") {
-    //   const parts = pathname.split("/").filter(Boolean);
-    //   if (parts.length < 4) {
-    //     return badRequest("Invalid delete path");
-    //   }
-
-    //   const id = parts[2];
-    //   if (!id || !isValidNamespaceId(id)) {
-    //     return badRequest("Invalid namespace id");
-    //   }
-
-    //   const name = decodeURIComponent(parts.slice(3).join("/"));
-    //   const key = buildObjectKey(id, name);
-
-    //   try {
-    //     await deleteObject(key);
-    //     return json({ success: true });
-    //   } catch (err) {
-    //     return json({ error: err instanceof Error ? err.message : "Delete failed" }, { status: 500 });
-    //   }
-    // }
 
     // DOWNLOAD URL
     if (pathname.startsWith("/api/download-url/")) {
       const parts = pathname.split("/").filter(Boolean);
 
       if (parts.length < 4) {
-        return badRequest("Invalid download path");
+        response = badRequest("Invalid download path");
+      } else {
+        const id = parts[2];
+
+        if (!id || !isValidNamespaceId(id)) {
+          response = badRequest("Invalid namespace id");
+        } else {
+          const name = decodeURIComponent(parts.slice(3).join("/"));
+
+          const key = buildObjectKey(id, name);
+
+          const getUrl = await signGetUrl({
+            key,
+            expiresIn: signedUrlTTL,
+          });
+
+          response = json({
+            id,
+            key,
+            url: getUrl,
+            expiresIn: signedUrlTTL,
+          });
+        }
       }
 
-      const id = parts[2];
-
-      if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
-      }
-
-      const name = decodeURIComponent(parts.slice(3).join("/"));
-
-      const key = buildObjectKey(id, name);
-
-      const getUrl = await signGetUrl({
-        key,
-        expiresIn: signedUrlTTL,
-      });
-
-      return json({
-        id,
-        key,
-        url: getUrl,
-        expiresIn: signedUrlTTL,
+      return new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...Object.fromEntries(response.headers.entries()),
+          ...corsHeaders,
+        },
       });
     }
 
@@ -192,6 +173,7 @@ Bun.serve({
       return new Response(html, {
         headers: {
           "content-type": "text/html; charset=utf-8",
+          ...corsHeaders,
         },
       });
     }
@@ -200,11 +182,18 @@ Bun.serve({
     const staticRes = await serveStatic(pathname);
 
     if (staticRes) {
-      return staticRes;
+      return new Response(staticRes.body, {
+        status: staticRes.status,
+        headers: {
+          ...Object.fromEntries(staticRes.headers.entries()),
+          ...corsHeaders,
+        },
+      });
     }
 
     return new Response("Not found", {
       status: 404,
+      headers: corsHeaders,
     });
   },
 });
