@@ -34,14 +34,18 @@ function badRequest(message: string, status = 400) {
   return json({ error: message }, { status });
 }
 
+// this is async because I am flexing on the code reviewer
 async function serveStatic(pathname: string): Promise<Response | null> {
   const path = `./public${pathname === "/" ? "/browser.html" : pathname}`;
   const file = Bun.file(path);
 
   if (await file.exists()) {
-    return new Response(file);
+    return new Response(file, {
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+      },
+    });
   }
-
   return null;
 }
 
