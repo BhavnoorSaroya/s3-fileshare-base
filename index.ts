@@ -5,6 +5,40 @@ const port = Number(Bun.env.PORT || 3000);
 const maxFileSize = Number(Bun.env.MAX_FILE_SIZE || 100 * 1024 * 1024);
 const signedUrlTTL = Number(Bun.env.SIGNED_URL_TTL_SECONDS || 300);
 
+const allowedOrigins = new Set([
+  "https://byte.5ab.dev",
+  "https://internal.5ab.dev",
+  "https://www.bytecamp.ca",
+  "https://bytecamp.ca",
+]);
+
+function getCorsHeaders(origin: string | null) {
+  if (!origin || !allowedOrigins.has(origin)) {
+    return {};
+  }
+
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function withCors(res: Response, origin: string | null) {
+  const headers = new Headers(res.headers);
+
+  for (const [key, value] of Object.entries(getCorsHeaders(origin))) {
+    headers.set(key, value);
+  }
+
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
 function json(data: unknown, init?: ResponseInit) {
   return Response.json(data, init);
 }
@@ -52,160 +86,226 @@ Bun.serve({
   port,
 
   async fetch(req) {
-    const url = new URL(req.url);
-    const { pathname } = url;
+    const origin = req.headers.get("origin");
 
-    // LIST FILES
-    if (pathname.startsWith("/api/list/")) {
-      const id = pathname.split("/").pop();
-
-      if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
-      }
-
-      const prefix = `${id}/`;
-      const files = await listPrefix(prefix);
-
-      return json({
-        id,
-        prefix,
-        files: files.map((f) => ({
-          key: f.key,
-          name: f.name,
-          size: f.size,
-          etag: f.etag,
-          lastModified: f.lastModified,
-        })),
-      });
+    // CORS preflight
+    if (req.method === "OPTIONS") {
+      return withCors(
+        new Response(null, {
+          status: 204,
+        }),
+        origin,
+      );
     }
 
-    // SIGN UPLOAD
-    if (pathname === "/api/sign-upload" && req.method === "POST") {
-      const body: unknown = await req.json().catch(() => null);
+    try {
+      const url = new URL(req.url);
+      const { pathname } = url;
 
-      if (!body || typeof body !== "object") {
-        return badRequest("Invalid JSON");
+      let response: Response;
+
+      // LIST FILES
+      if (pathname.startsWith("/api/list/")) {
+        const id = pathname.split("/").pop();
+
+        if (!id || !isValidNamespaceId(id)) {
+          response = badRequest("Invalid namespace id");
+          return withCors(response, origin);
+        }
+
+        const prefix = `${id}/`;
+        const files = await listPrefix(prefix);
+
+        response = json({
+          id,
+          prefix,
+          files: files.map((f) => ({
+            key: f.key,
+            name: f.name,
+            size: f.size,
+            etag: f.etag,
+            lastModified: f.lastModified,
+          })),
+        });
+
+        return withCors(response, origin);
       }
 
-      try {
-        const { id, filename, contentType } = assertValidUpload(
-          body as {
-            id: string;
-            filename: string;
-            filepath?: string;
-            contentType?: string;
-          },
-        );
+      // SIGN UPLOAD
+      if (pathname === "/api/sign-upload" && req.method === "POST") {
+        const body: unknown = await req.json().catch(() => null);
 
-        const filepath = (body as { filepath?: string }).filepath;
-        const key = buildObjectKey(id, filename, filepath);
+        if (!body || typeof body !== "object") {
+          response = badRequest("Invalid JSON");
+          return withCors(response, origin);
+        }
 
-        const putUrl = await signPutUrl({
+        try {
+          const { id, filename, contentType } = assertValidUpload(
+            body as {
+              id: string;
+              filename: string;
+              filepath?: string;
+              contentType?: string;
+            },
+          );
+
+          const filepath = (body as { filepath?: string }).filepath;
+          const key = buildObjectKey(id, filename, filepath);
+
+          const putUrl = await signPutUrl({
+            key,
+            contentType,
+            expiresIn: signedUrlTTL,
+          });
+
+          response = json({
+            id,
+            key,
+            putUrl,
+            headers: {
+              "content-type": contentType,
+            },
+            maxFileSize,
+            expiresIn: signedUrlTTL,
+          });
+
+          return withCors(response, origin);
+        } catch (err) {
+          response = badRequest(
+            err instanceof Error
+              ? err.message
+              : "Invalid upload request",
+          );
+
+          return withCors(response, origin);
+        }
+      }
+
+      // DELETE FILE
+      if (pathname.startsWith("/api/delete/") && req.method === "POST") {
+        const parts = pathname.split("/").filter(Boolean);
+
+        if (parts.length < 4) {
+          response = badRequest("Invalid delete path");
+          return withCors(response, origin);
+        }
+
+        const id = parts[2];
+
+        if (!id || !isValidNamespaceId(id)) {
+          response = badRequest("Invalid namespace id");
+          return withCors(response, origin);
+        }
+
+        const name = decodeURIComponent(parts.slice(3).join("/"));
+        const key = buildObjectKey(id, name);
+
+        try {
+          await deleteObject(key);
+
+          response = json({
+            success: true,
+          });
+
+          return withCors(response, origin);
+        } catch (err) {
+          response = json(
+            {
+              error:
+                err instanceof Error ? err.message : "Delete failed",
+            },
+            {
+              status: 500,
+            },
+          );
+
+          return withCors(response, origin);
+        }
+      }
+
+      // DOWNLOAD URL
+      if (pathname.startsWith("/api/download-url/")) {
+        const parts = pathname.split("/").filter(Boolean);
+
+        if (parts.length < 4) {
+          response = badRequest("Invalid download path");
+          return withCors(response, origin);
+        }
+
+        const id = parts[2];
+
+        if (!id || !isValidNamespaceId(id)) {
+          response = badRequest("Invalid namespace id");
+          return withCors(response, origin);
+        }
+
+        const name = decodeURIComponent(parts.slice(3).join("/"));
+        const key = buildObjectKey(id, name);
+
+        const getUrl = await signGetUrl({
           key,
-          contentType,
           expiresIn: signedUrlTTL,
         });
 
-        return json({
+        response = json({
           id,
           key,
-          putUrl,
-          headers: {
-            "content-type": contentType,
-          },
-          maxFileSize,
+          url: getUrl,
           expiresIn: signedUrlTTL,
         });
-      } catch (err) {
-        return badRequest(
-          err instanceof Error
-            ? err.message
-            : "Invalid upload request",
+
+        return withCors(response, origin);
+      }
+
+      // NAMESPACE PAGES
+      const namespaceRoute = routeNamespacePage(pathname);
+
+      if (namespaceRoute) {
+        response = new Response(
+          Bun.file(
+            namespaceRoute.upload
+              ? "./public/upload.html"
+              : "./public/browser.html",
+          ),
+          {
+            headers: {
+              "content-type": "text/html; charset=utf-8",
+            },
+          },
         );
-      }
-    }
 
-    // DELETE FILE
-    if (pathname.startsWith("/api/delete/") && req.method === "POST") {
-      const parts = pathname.split("/").filter(Boolean);
-      if (parts.length < 4) {
-        return badRequest("Invalid delete path");
+        return withCors(response, origin);
       }
 
-      const id = parts[2];
-      if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
+      // STATIC FILES
+      const staticRes = await serveStatic(pathname);
+
+      if (staticRes) {
+        return withCors(staticRes, origin);
       }
 
-      const name = decodeURIComponent(parts.slice(3).join("/"));
-      const key = buildObjectKey(id, name);
-
-      try {
-        await deleteObject(key);
-        return json({ success: true });
-      } catch (err) {
-        return json({ error: err instanceof Error ? err.message : "Delete failed" }, { status: 500 });
-      }
-    }
-
-    // DOWNLOAD URL
-    if (pathname.startsWith("/api/download-url/")) {
-      const parts = pathname.split("/").filter(Boolean);
-
-      if (parts.length < 4) {
-        return badRequest("Invalid download path");
-      }
-
-      const id = parts[2];
-
-      if (!id || !isValidNamespaceId(id)) {
-        return badRequest("Invalid namespace id");
-      }
-
-      const name = decodeURIComponent(parts.slice(3).join("/"));
-
-      const key = buildObjectKey(id, name);
-
-      const getUrl = await signGetUrl({
-        key,
-        expiresIn: signedUrlTTL,
+      response = new Response("Not found", {
+        status: 404,
       });
 
-      return json({
-        id,
-        key,
-        url: getUrl,
-        expiresIn: signedUrlTTL,
-      });
-    }
-
-    // NAMESPACE PAGES
-    const namespaceRoute = routeNamespacePage(pathname);
-
-    if (namespaceRoute) {
-      const html = Bun.file(
-        namespaceRoute.upload
-          ? "./public/upload.html"
-          : "./public/browser.html",
+      return withCors(response, origin);
+    } catch (err) {
+      return withCors(
+        json(
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Internal server error",
+          },
+          {
+            status: 500,
+          },
+        ),
+        origin,
       );
-
-      return new Response(html, {
-        headers: {
-          "content-type": "text/html; charset=utf-8",
-        },
-      });
     }
-
-    // STATIC FILES
-    const staticRes = await serveStatic(pathname);
-
-    if (staticRes) {
-      return staticRes;
-    }
-
-    return new Response("Not found", {
-      status: 404,
-    });
   },
 });
 
