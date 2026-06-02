@@ -2,7 +2,8 @@ const id = location.pathname.split("/").filter(Boolean)[0];
 const inIframe = window.self !== window.top;
 
 if (inIframe) {
-  document.body.classList.add("iframe-minimal");
+  // document.body.classList.add("iframe-minimal");
+  console.log("In iframe")
 }
 
 document.getElementById("nsLabel").textContent = `QR code ${id}`;
