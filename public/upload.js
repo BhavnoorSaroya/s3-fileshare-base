@@ -5,7 +5,7 @@ if (inIframe) {
   document.body.classList.add("iframe-minimal");
 }
 
-document.getElementById("nsLabel").textContent = `Namespace ${id}`;
+document.getElementById("nsLabel").textContent = `QR code ${id}`;
 document.getElementById("uploadHint").textContent =
   inIframe
     ? "Drop files or folders here to upload"
