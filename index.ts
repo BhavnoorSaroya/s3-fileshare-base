@@ -10,6 +10,7 @@ const allowedOrigins = new Set([
   "https://internal.5ab.dev",
   "https://www.bytecamp.ca",
   "https://bytecamp.ca",
+  "http://localhost:3000"
 ]);
 
 function getCorsHeaders(origin: string | null) {
