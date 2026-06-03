@@ -1,8 +1,15 @@
-const bucket = Bun.env.TIGRIS_BUCKET!;
-const endpoint = Bun.env.TIGRIS_ENDPOINT!;
-const accessKeyId = Bun.env.TIGRIS_ACCESS_KEY_ID!;
-const secretAccessKey = Bun.env.TIGRIS_SECRET_ACCESS_KEY!;
-const region = Bun.env.TIGRIS_REGION || "auto";
+// const bucket = Bun.env.TIGRIS_BUCKET!;
+// const endpoint = Bun.env.TIGRIS_ENDPOINT!;
+// const accessKeyId = Bun.env.TIGRIS_ACCESS_KEY_ID!;
+// const secretAccessKey = Bun.env.TIGRIS_SECRET_ACCESS_KEY!;
+// const region = Bun.env.TIGRIS_REGION || "auto";
+
+
+const bucket = Bun.env.AWS_BUCKET!;
+const endpoint = Bun.env.AWS_ENDPOINT!;
+const accessKeyId = Bun.env.AWS_ACCESS_KEY_ID!;
+const secretAccessKey = Bun.env.AWS_SECRET_ACCESS_KEY!;
+const region = Bun.env.AWS_REGION!;
 
 if (!bucket || !endpoint || !accessKeyId || !secretAccessKey) {
   throw new Error("Missing Tigris S3 environment variables");
