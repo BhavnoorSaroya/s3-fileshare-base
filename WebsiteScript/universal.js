@@ -174,7 +174,7 @@
       );
 
       const response = await fetch(
-        'https://byte.5ab.dev/',
+        'https://s3download.fly.dev/',
         {
           method: 'HEAD',
           signal: controller.signal
@@ -202,7 +202,7 @@
 
       if (!views.upload) {
         views.upload = createIframe(
-          `https://byte.5ab.dev/${id}/upload`
+          `https://s3download.fly.dev/${id}/upload`
         );
       }
 

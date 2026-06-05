@@ -178,6 +178,13 @@ function clearCookie(name: string, sameSite: "Lax" | "None") {
 }
 
 function getRequestOrigin(req: Request) {
+  const forwardedProto = req.headers.get("x-forwarded-proto");
+  const forwardedHost = req.headers.get("x-forwarded-host") || req.headers.get("host");
+
+  if (forwardedProto && forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
   const url = new URL(req.url);
   return url.origin;
 }
@@ -261,6 +268,7 @@ function createOauthStateCookie(state: string) {
 }
 
 async function exchangeCodeForTokens(req: Request, code: string) {
+  const redirectUri = getOAuthRedirectUri(req);
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: {
@@ -270,7 +278,7 @@ async function exchangeCodeForTokens(req: Request, code: string) {
       code,
       client_id: oauthClientId || "",
       client_secret: oauthClientSecret || "",
-      redirect_uri: getOAuthRedirectUri(req),
+      redirect_uri: redirectUri,
       grant_type: "authorization_code",
     }),
   });
@@ -278,6 +286,12 @@ async function exchangeCodeForTokens(req: Request, code: string) {
   const payload = (await res.json()) as GoogleTokenResponse;
 
   if (!res.ok || !payload.access_token) {
+    console.error("Google token exchange failed", {
+      status: res.status,
+      redirectUri,
+      error: payload.error,
+      errorDescription: payload.error_description,
+    });
     throw new Error(payload.error_description || payload.error || "Google token exchange failed");
   }
 
@@ -675,3 +689,10 @@ Bun.serve({
 });
 
 console.log(`New app on http://localhost:${port}`);
+console.log("OAuth configuration", {
+  allowedGoogleDomain,
+  hasClientId: Boolean(oauthClientId),
+  hasClientSecret: Boolean(oauthClientSecret),
+  hasSessionSecret: Boolean(sessionSecret),
+  configuredRedirectUri: Bun.env.OAUTH_REDIRECT_URI || null,
+});

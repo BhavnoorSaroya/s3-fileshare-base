@@ -156,7 +156,7 @@
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
 
-      const response = await fetch('https://s3.bikecamp.ca/checkauth', {
+      const response = await fetch('https://s3download.fly.dev/checkauth', {
         credentials: 'include',
         signal: controller.signal
       });
@@ -187,7 +187,7 @@
 
       if (!views.upload) {
         views.upload = createIframe(
-          `https://byte.5ab.dev/${id}/upload`
+          `https://s3download.fly.dev/${id}/upload`
         );
       }
 
