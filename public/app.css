@@ -124,6 +124,7 @@ input[type="file"]::file-selector-button:disabled {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.5);
   text-align: left;
+  overflow: hidden;
   transition: transform 140ms ease, background 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
   box-shadow: 0 1px 0 rgba(11, 15, 26, 0.04);
 }
@@ -154,13 +155,16 @@ input[type="file"]::file-selector-button:disabled {
 .file-meta {
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .file-name {
+  display: block;
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 100%;
 }
 
 .file-sub {
