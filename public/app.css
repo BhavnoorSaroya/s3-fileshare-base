@@ -171,12 +171,12 @@ input[type="file"]::file-selector-button:disabled {
 
 .file-affordance {
   flex-shrink: 0;
-  border: 1px solid rgba(110, 168, 254, 0.45);
-  background: rgba(110, 168, 254, 0.12);
+  /* border: 1px solid rgba(110, 168, 254, 0.45); */
+  /* background: rgba(110, 168, 254, 0.12); */
   color: #12305d;
-  border-radius: 999px;
-  padding: 8px 12px;
-  font-size: 12px;
+  /* border-radius: 999px; */
+  /* padding: 8px 8px; */
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -246,11 +246,11 @@ input[type="file"]::file-selector-button:disabled {
 
   .file-row {
     align-items: flex-start;
-    flex-direction: column;
+    flex-direction: row;
   }
 
   .file-affordance {
-    align-self: flex-start;
+    align-self: flex-end;
   }
 }
 
