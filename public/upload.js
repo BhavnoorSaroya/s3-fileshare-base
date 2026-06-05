@@ -16,6 +16,47 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const toasts = document.getElementById("toasts");
 const fileList = document.getElementById("fileList");
+const authStatus = document.getElementById("authStatus");
+const authActions = document.getElementById("authActions");
+const loginLink = document.getElementById("loginLink");
+let isAuthenticated = false;
+
+loginLink.href = `/auth/google/login?returnTo=${encodeURIComponent(location.pathname)}`;
+
+function setUploadEnabled(enabled) {
+  dropzone.style.pointerEvents = enabled ? "auto" : "none";
+  dropzone.style.opacity = enabled ? "1" : "0.6";
+  fileInput.disabled = !enabled;
+}
+
+function showAuthMessage(message, showLogin) {
+  authStatus.hidden = false;
+  authStatus.textContent = message;
+  authActions.hidden = !showLogin;
+}
+
+async function checkAuth() {
+  const res = await fetch("/checkauth", {
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    throw new Error("Failed to check authentication");
+  }
+
+  const data = await res.json();
+  isAuthenticated = Boolean(data.authenticated);
+  setUploadEnabled(isAuthenticated);
+
+  if (isAuthenticated) {
+    authStatus.hidden = true;
+    authActions.hidden = true;
+  } else if (inIframe) {
+    showAuthMessage("Upload is available only for signed-in staff.", false);
+  } else {
+    showAuthMessage("Sign in with Google to upload or delete files.", true);
+  }
+}
 
 function createFolderPickerInput() {
   const input = document.createElement("input");
@@ -88,13 +129,18 @@ async function loadFiles() {
   }
 
   fileList.querySelectorAll(".delete-btn").forEach(btn => {
+    btn.disabled = !isAuthenticated;
     btn.addEventListener("click", async () => {
+      if (!isAuthenticated) return;
       const filename = btn.dataset.filename;
       if (!confirm(`Delete "${filename}"?`)) return;
       btn.disabled = true;
       btn.textContent = "Deleting...";
       try {
-        const res = await fetch(`/api/delete/${id}/${encodeURIComponent(filename)}`, { method: "POST" });
+        const res = await fetch(`/api/delete/${id}/${encodeURIComponent(filename)}`, {
+          method: "POST",
+          credentials: "include",
+        });
         if (!res.ok) throw new Error("Delete failed");
         await loadFiles();
       } catch (err) {
@@ -111,6 +157,7 @@ async function signUpload(file) {
   const filepath = file._relativePath || file.webkitRelativePath || file.name;
   const res = await fetch("/api/sign-upload", {
     method: "POST",
+    credentials: "include",
     headers: {
       "content-type": "application/json",
     },
@@ -155,6 +202,16 @@ function uploadWithProgress(url, file, headers, t) {
 }
 
 async function handleFiles(files) {
+  if (!isAuthenticated) {
+    showAuthMessage(
+      inIframe
+        ? "Upload is available only for signed-in staff."
+        : "Sign in with Google to upload files.",
+      !inIframe,
+    );
+    return;
+  }
+
   for (const file of files) {
     const displayName = file.webkitRelativePath || file.name;
     const t = toast(`Uploading ${displayName}`, "Preparing upload...");
@@ -251,16 +308,19 @@ dropzone.addEventListener("dragleave", () => {
 dropzone.addEventListener("drop", async (e) => {
   e.preventDefault();
   dropzone.classList.remove("dragover");
+   if (!isAuthenticated) return;
   const files = await getDroppedFiles(e.dataTransfer);
   if (files.length) handleFiles(files);
 });
 
 fileInput.addEventListener("change", () => {
+  if (!isAuthenticated) return;
   const files = [...fileInput.files];
   if (files.length) handleFiles(files);
 });
 
 dropzone.addEventListener("click", async (e) => {
+  if (!isAuthenticated) return;
   if (e.target === fileInput) {
     return;
   }
@@ -282,4 +342,5 @@ dropzone.addEventListener("click", async (e) => {
   folderInput.click();
 });
 
-loadFiles();
+await checkAuth();
+await loadFiles();
