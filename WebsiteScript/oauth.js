@@ -12,6 +12,9 @@
 
   if (!projectContent) return;
 
+  // So we don't scroll a tiny viewbox on mobile
+  document.getElementsByClassName("embed-wrapper")[0].style.height = '100%'
+
   function createFixedControl({
     id,
     text,
@@ -76,6 +79,10 @@
   }
 
   function showView(view) {
+    const viewer = document.getElementsByClassName('container')[0].firstElementChild
+
+
+
     if (views.download) {
       views.download.style.display = 'none';
     }
@@ -88,14 +95,17 @@
 
     switch (view) {
       case 'download':
+        viewer.style.height = '80vh'
         views.download.style.display = 'block';
         break;
 
       case 'upload':
+        viewer.style.height = '80vh'
         views.upload.style.display = 'block';
         break;
 
       default:
+        viewer.style.height = ''
         projectContent.style.display = '';
         view = 'content';
     }
