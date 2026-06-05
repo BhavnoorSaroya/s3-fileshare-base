@@ -1,6 +1,6 @@
 (async function () {
   const urlParams = new URLSearchParams(window.location.search);
-  const qrRaw = urlParams.get('code');
+  const qrRaw = urlParams.get('qr');
 
   if (!qrRaw) return;
 
@@ -8,7 +8,7 @@
 
   if (!id) return;
 
-  const projectContent = document.querySelector('iframe');
+  const projectContent = document.getElementById('projectContent');
 
   if (!projectContent) return;
 
@@ -45,26 +45,14 @@
     return el;
   }
 
-  const downloadToggle = createFixedControl({
-    id: 'filedownloadtoggle',
-    text: 'Download Files',
-    side: 'right'
-  });
-
   let currentView = 'content';
 
   const views = {
     content: projectContent,
-    download: null,
     upload: null
   };
 
   function updateLabels() {
-    downloadToggle.textContent =
-      currentView === 'download'
-        ? 'Hide Downloads'
-        : 'Download Files';
-
     if (uploadToggle) {
       uploadToggle.textContent =
         currentView === 'upload'
@@ -74,10 +62,6 @@
   }
 
   function showView(view) {
-    if (views.download) {
-      views.download.style.display = 'none';
-    }
-
     if (views.upload) {
       views.upload.style.display = 'none';
     }
@@ -85,10 +69,6 @@
     projectContent.style.display = 'none';
 
     switch (view) {
-      case 'download':
-        views.download.style.display = 'block';
-        break;
-
       case 'upload':
         views.upload.style.display = 'block';
         break;
@@ -114,39 +94,6 @@
     projectContent.insertAdjacentElement('afterend', iframe);
 
     return iframe;
-  }
-
-  try {
-    const listResponse = await fetch(
-      `https://s3download.fly.dev/api/list/${id}`
-    );
-
-    const listData = await listResponse.json();
-
-    const hasFiles =
-      listData &&
-      Array.isArray(listData.files) &&
-      listData.files.length > 0;
-
-    if (!hasFiles) {
-      downloadToggle.style.display = 'none';
-    } else {
-      downloadToggle.addEventListener('click', () => {
-        if (!views.download) {
-          views.download = createIframe(
-            `https://s3download.fly.dev/${id}`
-          );
-        }
-
-        if (currentView === 'download') {
-          showView('content');
-        } else {
-          showView('download');
-        }
-      });
-    }
-  } catch {
-    downloadToggle.style.display = 'none';
   }
 
   let uploadToggle = null;
