@@ -1,6 +1,6 @@
 (async function () {
   const urlParams = new URLSearchParams(window.location.search);
-  const qrRaw = urlParams.get('qr');
+  const qrRaw = urlParams.get('code');
 
   if (!qrRaw) return;
 
@@ -8,7 +8,7 @@
 
   if (!id) return;
 
-  const projectContent = document.getElementById('projectContent');
+  const projectContent = document.querySelector('iframe');
 
   if (!projectContent) return;
 
@@ -16,31 +16,37 @@
     id,
     text,
     side,
-    background = '#ff2e2eff',
-    isAnchor = false
+    background,
+    color = '#FFFFFF',
+    textDecoration = 'none'
   }) {
-    const el = document.createElement(isAnchor ? 'a' : 'button');
+    const el = document.createElement('a');
 
     el.id = id;
     el.textContent = text;
+    el.href = '#';
 
-    el.style.position = 'fixed';
-    el.style.bottom = '0';
-    el.style[side] = '0';
-    el.style.padding = '16px';
+    el.style.display = 'inline-block';
+    // el.style.padding = '10px';
     el.style.zIndex = '100';
+    el.style.borderRadius = '10px';
+    // el.style.transform = 'translateX(-1px)';
+    el.style.height = '40px';
+    el.style.paddingInline = '10px'
+    el.style.lineHeight = '40px';
+    el.style.color = color;
+    el.style.background = background;
+    el.style.textDecoration = textDecoration;
 
-    if (isAnchor) {
-      el.href = '#';
-      el.style.color = '#0066cc';
-      el.style.background = '#fff';
-      el.style.textDecoration = 'underline';
-    } else {
-      el.style.border = '0';
-      el.style.background = background;
-    }
+    const iconsdiv = document.getElementsByClassName('card-share-icons')[0];
 
-    document.body.appendChild(el);
+    if (!iconsdiv) return null;
+
+    // if (side === 'left') {
+      iconsdiv.prepend(el);
+    // } else {
+      iconsdiv.prepend(el);
+    // }
 
     return el;
   }
@@ -49,10 +55,18 @@
 
   const views = {
     content: projectContent,
+    download: null,
     upload: null
   };
 
   function updateLabels() {
+    if (downloadToggle) {
+      downloadToggle.textContent =
+        currentView === 'download'
+          ? 'Hide Downloads'
+          : 'Download Camp Files';
+    }
+
     if (uploadToggle) {
       uploadToggle.textContent =
         currentView === 'upload'
@@ -62,6 +76,10 @@
   }
 
   function showView(view) {
+    if (views.download) {
+      views.download.style.display = 'none';
+    }
+
     if (views.upload) {
       views.upload.style.display = 'none';
     }
@@ -69,6 +87,10 @@
     projectContent.style.display = 'none';
 
     switch (view) {
+      case 'download':
+        views.download.style.display = 'block';
+        break;
+
       case 'upload':
         views.upload.style.display = 'block';
         break;
@@ -96,14 +118,36 @@
     return iframe;
   }
 
+  let downloadToggle = null;
   let uploadToggle = null;
+
+  const internalBaseUrl = 'https://byte.5ab.dev';
+  const externalBaseUrl = 'https://s3download.fly.dev';
+
+  async function canReachInternalHost() {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+
+      await fetch(`${internalBaseUrl}/`, {
+        method: 'HEAD',
+        mode: 'no-cors',
+        signal: controller.signal
+      });
+
+      clearTimeout(timeout);
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   async function isUploadAuthenticated() {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 3000);
 
-      const response = await fetch('https://s3download.fly.dev/checkauth', {
+      const response = await fetch(`${externalBaseUrl}/checkauth`, {
         credentials: 'include',
         signal: controller.signal
       });
@@ -121,30 +165,88 @@
     }
   }
 
-  if (await isUploadAuthenticated()) {
+  try {
+    const listResponse = await fetch(
+      `${externalBaseUrl}/api/list/${id}`
+    );
+
+    const listData = await listResponse.json();
+
+    const hasFiles =
+      listData &&
+      Array.isArray(listData.files) &&
+      listData.files.length > 0;
+
+    if (hasFiles) {
+      downloadToggle = createFixedControl({
+        id: 'filedownloadtoggle',
+        text: 'Download Camp Files',
+        side: 'right',
+        background: '#543cbf'
+      });
+
+      if (downloadToggle) {
+        downloadToggle.addEventListener('click', (e) => {
+          e.preventDefault();
+
+          if (!views.download) {
+            views.download = createIframe(`${externalBaseUrl}/${id}`);
+          }
+
+          if (currentView === 'download') {
+            showView('content');
+          } else {
+            showView('download');
+          }
+        });
+      }
+    }
+  } catch {
+    downloadToggle = null;
+  }
+
+  let uploadBaseUrl = null;
+  let uploadButtonBackground = '#FFFFFF';
+  let uploadButtonColor = '#000000';
+  let uploadButtonTextDecoration = 'underline';
+
+  if (await canReachInternalHost()) {
+    uploadBaseUrl = internalBaseUrl;
+    uploadButtonBackground = '#0066cc';
+    uploadButtonColor = '#FFFFFF';
+    uploadButtonTextDecoration = 'none';
+  } else if (await isUploadAuthenticated()) {
+    uploadBaseUrl = externalBaseUrl;
+  }
+
+  if (uploadBaseUrl) {
     uploadToggle = createFixedControl({
       id: 'fileuploadtoggle',
       text: 'Upload Files',
       side: 'left',
-      isAnchor: true
+      background: uploadButtonBackground,
+      color: uploadButtonColor,
+      textDecoration: uploadButtonTextDecoration
     });
 
-    uploadToggle.addEventListener('click', (e) => {
-      e.preventDefault();
+    if (uploadToggle) {
+      uploadToggle.addEventListener('click', (e) => {
+        e.preventDefault();
 
-      if (!views.upload) {
-        views.upload = createIframe(
-          `https://s3download.fly.dev/${id}/upload`
-        );
-      }
+        if (!views.upload) {
+          views.upload = createIframe(
+            `${uploadBaseUrl}/${id}/upload`
+          );
+        }
 
-      if (currentView === 'upload') {
-        showView('content');
-      } else {
-        showView('upload');
-      }
-    });
-
-    updateLabels();
+        if (currentView === 'upload') {
+          showView('content');
+        } else {
+          showView('upload');
+        }
+      });
+    }
   }
+
+  updateLabels();
 })();
