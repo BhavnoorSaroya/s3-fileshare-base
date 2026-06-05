@@ -81,6 +81,7 @@
 
   function showView(view) {
     const viewer = document.getElementsByClassName('container')[0].firstElementChild
+    viewer.style.overflow = 'hidden'
 
 
 
@@ -123,6 +124,7 @@
     iframe.style.width = '100%';
     iframe.style.height = '100%';
     iframe.style.border = 'none';
+    // iframe.style.overflow = 'hidden'
 
     projectContent.insertAdjacentElement('afterend', iframe);
 
@@ -217,9 +219,9 @@
   }
 
   let uploadBaseUrl = null;
-  let uploadButtonBackground = '#FFFFFF';
+  let uploadButtonBackground = '#ffa7a7ff';
   let uploadButtonColor = '#000000';
-  let uploadButtonTextDecoration = 'underline';
+  let uploadButtonTextDecoration = 'none';
 
   if (await canReachInternalHost()) {
     uploadBaseUrl = internalBaseUrl;
