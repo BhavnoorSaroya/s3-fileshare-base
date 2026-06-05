@@ -36,6 +36,7 @@
     // el.style.transform = 'translateX(-1px)';
     el.style.height = '40px';
     el.style.paddingInline = '10px'
+    el.style.marginInline = '5px'
     el.style.lineHeight = '40px';
     el.style.color = color;
     el.style.background = background;
