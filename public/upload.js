@@ -1,11 +1,6 @@
 const id = location.pathname.split("/").filter(Boolean)[0];
 const inIframe = window.self !== window.top;
 
-if (inIframe) {
-  // document.body.classList.add("iframe-minimal");
-  console.log("In iframe")
-}
-
 document.getElementById("nsLabel").textContent = `QR code ${id}`;
 document.getElementById("uploadHint").textContent =
   inIframe
@@ -20,8 +15,13 @@ const authStatus = document.getElementById("authStatus");
 const authActions = document.getElementById("authActions");
 const loginLink = document.getElementById("loginLink");
 let isAuthenticated = false;
+let authWindow = null;
+let authInProgress = false;
 
-loginLink.href = `/auth/google/login?returnTo=${encodeURIComponent(location.pathname)}`;
+const authMessageSource = "byte-upload-auth";
+const popupOrigin = window.location.origin;
+
+loginLink.href = `/auth/google/login?returnTo=${encodeURIComponent(location.pathname)}&popupOrigin=${encodeURIComponent(popupOrigin)}`;
 
 function setUploadEnabled(enabled) {
   dropzone.style.pointerEvents = enabled ? "auto" : "none";
@@ -33,6 +33,39 @@ function showAuthMessage(message, showLogin) {
   authStatus.hidden = false;
   authStatus.textContent = message;
   authActions.hidden = !showLogin;
+}
+
+function resetAuthFlow() {
+  authWindow = null;
+  authInProgress = false;
+  loginLink.textContent = "Sign in with Google";
+}
+
+async function handleAuthSuccess() {
+  // console.log("[upload-auth] auth success message received");
+  resetAuthFlow();
+  await checkAuth();
+  await loadFiles();
+}
+
+function openAuthPopup() {
+  authWindow = window.open(
+    loginLink.href,
+    "byte-upload-auth",
+    "popup=yes,width=520,height=720,resizable=yes,scrollbars=yes",
+  );
+
+  if (!authWindow) {
+    console.warn("[upload-auth] popup blocked");
+    showAuthMessage("Popup blocked. Use the sign-in link to continue.", true);
+    return false;
+  }
+
+  authInProgress = true;
+  loginLink.textContent = "Waiting for sign-in...";
+  // console.log("[upload-auth] popup opened", { loginUrl: loginLink.href, popupOrigin });
+
+  return true;
 }
 
 async function checkAuth() {
@@ -52,11 +85,26 @@ async function checkAuth() {
     authStatus.hidden = true;
     authActions.hidden = true;
   } else if (inIframe) {
-    showAuthMessage("Upload is available only for signed-in staff.", false);
+    showAuthMessage("Sign in with Google in a popup to enable uploads.", true);
   } else {
     showAuthMessage("Sign in with Google to upload or delete files.", true);
   }
 }
+
+window.addEventListener("message", async (event) => {
+  // console.log("[upload-auth] message event", {eventOrigin: event.origin, expectedOrigin: window.location.origin, data: event.data});
+
+  if (event.origin !== window.location.origin) {
+    return;
+  }
+
+  const data = event.data;
+  if (!data || data.source !== authMessageSource || data.type !== "auth-complete") {
+    return;
+  }
+
+  await handleAuthSuccess();
+});
 
 function createFolderPickerInput() {
   const input = document.createElement("input");
@@ -340,6 +388,15 @@ dropzone.addEventListener("click", async (e) => {
     folderInput.remove();
   }, { once: true });
   folderInput.click();
+});
+
+loginLink.addEventListener("click", (e) => {
+  if (!inIframe || isAuthenticated || authInProgress) {
+    return;
+  }
+
+  e.preventDefault();
+  openAuthPopup();
 });
 
 await checkAuth();

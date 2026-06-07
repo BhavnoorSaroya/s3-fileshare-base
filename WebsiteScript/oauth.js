@@ -1,6 +1,7 @@
 (async function () {
   const urlParams = new URLSearchParams(window.location.search);
   const qrRaw = urlParams.get('code');
+  const uploadEnabledByQuery = urlParams.get('upload') === '1';
 
   if (!qrRaw) return;
 
@@ -18,7 +19,6 @@
   function createFixedControl({
     id,
     text,
-    side,
     background,
     color = '#FFFFFF',
     textDecoration = 'none'
@@ -30,10 +30,8 @@
     el.href = '#';
 
     el.style.display = 'inline-block';
-    // el.style.padding = '10px';
     el.style.zIndex = '100';
-    el.style.borderRadius = '10px';
-    // el.style.transform = 'translateX(-1px)';
+    el.style.borderRadius = '8px';
     el.style.height = '40px';
     el.style.paddingInline = '10px'
     el.style.marginInline = '5px'
@@ -42,15 +40,12 @@
     el.style.background = background;
     el.style.textDecoration = textDecoration;
 
+    // where the share icons are
     const iconsdiv = document.getElementsByClassName('card-share-icons')[0];
 
     if (!iconsdiv) return null;
 
-    // if (side === 'left') {
-      iconsdiv.prepend(el);
-    // } else {
-      iconsdiv.prepend(el);
-    // }
+    iconsdiv.prepend(el);
 
     return el;
   }
@@ -140,7 +135,7 @@
   async function canReachInternalHost() {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
+      const timeout = setTimeout(() => controller.abort(), 1200);
 
       await fetch(`${internalBaseUrl}/`, {
         method: 'HEAD',
@@ -155,27 +150,48 @@
     }
   }
 
-  async function isUploadAuthenticated() {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 3000);
+  const uploadState = {
+    enabled: uploadEnabledByQuery,
+    uploadBaseUrl: null,
+    buttonBackground: '#ffa7a7ff',
+    buttonColor: '#000000',
+    buttonTextDecoration: 'none'
+  };
 
-      const response = await fetch(`${externalBaseUrl}/checkauth`, {
-        credentials: 'include',
-        signal: controller.signal
-      });
+  function openUploadView() {
+    if (!uploadState.uploadBaseUrl) {
+      return;
+    }
 
-      clearTimeout(timeout);
+    if (!views.upload) {
+      views.upload = createIframe(
+        `${uploadState.uploadBaseUrl}/${id}/upload`
+      );
+    }
 
-      if (!response.ok) {
-        return false;
-      }
+    if (currentView === 'upload') {
+      showView('content');
+    } else {
+      showView('upload');
+    }
+  }
 
-      const payload = await response.json();
-      return Boolean(payload && payload.authenticated);
-    } catch {
+  async function initializeUploadState() {
+    if (!uploadState.enabled) {
       return false;
     }
+
+    if (await canReachInternalHost()) {
+      uploadState.uploadBaseUrl = internalBaseUrl;
+      uploadState.buttonBackground = '#0066cc';
+      uploadState.buttonColor = '#FFFFFF';
+      uploadState.buttonTextDecoration = 'none';
+      return true;
+    }
+
+    uploadState.uploadBaseUrl = externalBaseUrl;
+    // uploadState.shouldAuthOnClick = !isAuthenticated;
+    return true;
   }
 
   try {
@@ -194,7 +210,6 @@
       downloadToggle = createFixedControl({
         id: 'filedownloadtoggle',
         text: 'Download Camp Files',
-        side: 'right',
         background: '#543cbf'
       });
 
@@ -218,45 +233,20 @@
     downloadToggle = null;
   }
 
-  let uploadBaseUrl = null;
-  let uploadButtonBackground = '#ffa7a7ff';
-  let uploadButtonColor = '#000000';
-  let uploadButtonTextDecoration = 'none';
-
-  if (await canReachInternalHost()) {
-    uploadBaseUrl = internalBaseUrl;
-    uploadButtonBackground = '#0066cc';
-    uploadButtonColor = '#FFFFFF';
-    uploadButtonTextDecoration = 'none';
-  } else if (await isUploadAuthenticated()) {
-    uploadBaseUrl = externalBaseUrl;
-  }
-
-  if (uploadBaseUrl) {
+  if (await initializeUploadState()) {
     uploadToggle = createFixedControl({
       id: 'fileuploadtoggle',
       text: 'Upload Files',
-      side: 'left',
-      background: uploadButtonBackground,
-      color: uploadButtonColor,
-      textDecoration: uploadButtonTextDecoration
+      background: uploadState.buttonBackground,
+      color: uploadState.buttonColor,
+      textDecoration: uploadState.buttonTextDecoration
     });
 
     if (uploadToggle) {
       uploadToggle.addEventListener('click', (e) => {
         e.preventDefault();
 
-        if (!views.upload) {
-          views.upload = createIframe(
-            `${uploadBaseUrl}/${id}/upload`
-          );
-        }
-
-        if (currentView === 'upload') {
-          showView('content');
-        } else {
-          showView('upload');
-        }
+        openUploadView();
       });
     }
   }

@@ -218,6 +218,94 @@ function sanitizeReturnTo(returnTo: string | null) {
   return returnTo;
 }
 
+function sanitizePopupOrigin(origin: string | null, req: Request) {
+  if (!origin) {
+    return null;
+  }
+
+  try {
+    const parsedOrigin = new URL(origin).origin;
+    if (allowedOrigins.has(parsedOrigin)) {
+      return parsedOrigin;
+    }
+
+    const requestOrigin = getRequestOrigin(req);
+    if (parsedOrigin === requestOrigin) {
+      return parsedOrigin;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function parsePopupCallbackReturn(returnTo: string, req: Request) {
+  try {
+    const callbackUrl = new URL(returnTo, getRequestOrigin(req));
+
+    if (callbackUrl.pathname !== "/auth/google/callback") {
+      return null;
+    }
+
+    const popupOrigin = sanitizePopupOrigin(callbackUrl.searchParams.get("popupOrigin"), req);
+    if (!popupOrigin) {
+      return null;
+    }
+
+    return {
+      popupOrigin,
+      popupReturnTo: sanitizeReturnTo(callbackUrl.searchParams.get("returnTo")),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function buildAuthPopupResponse(targetOrigin: string, returnTo: string) {
+  const escapedOrigin = JSON.stringify(targetOrigin);
+  const escapedReturnTo = JSON.stringify(returnTo);
+
+  return new Response(
+    `<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Authentication Complete</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        const message = {
+          source: 'byte-upload-auth',
+          type: 'auth-complete',
+          returnTo: ${escapedReturnTo}
+        };
+
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(message, ${escapedOrigin});
+          }
+        } catch {}
+
+        window.close();
+
+        setTimeout(function () {
+          document.body.textContent = 'Authentication complete. You can close this window.';
+        }, 150);
+      })();
+    </script>
+  </body>
+</html>`,
+    {
+      status: 200,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+      },
+    },
+  );
+}
+
 async function createSessionToken(payload: SessionPayload) {
   if (!sessionSecret) {
     throw new Error("AUTH_SESSION_SECRET is not configured");
@@ -264,7 +352,7 @@ function buildStateValue() {
 }
 
 function createOauthStateCookie(state: string) {
-  return buildCookie(oauthStateCookieName, state, oauthStateTTL, "Lax");
+  return buildCookie(oauthStateCookieName, state, oauthStateTTL, "None");
 }
 
 async function exchangeCodeForTokens(req: Request, code: string) {
@@ -331,8 +419,7 @@ function needsUploadAuth(pathname: string, method: string) {
     return true;
   }
 
-  const namespaceRoute = routeNamespacePage(pathname);
-  return Boolean(namespaceRoute?.upload);
+  return false;
 }
 
 function buildLoginRedirect(req: Request) {
@@ -422,10 +509,14 @@ Bun.serve({
         }
 
         const returnTo = sanitizeReturnTo(url.searchParams.get("returnTo"));
+        const popupOrigin = sanitizePopupOrigin(url.searchParams.get("popupOrigin"), req);
         const state = buildStateValue();
         const headers = new Headers();
         appendSetCookie(headers, createOauthStateCookie(state));
-        response = redirect(buildGoogleLoginUrl(req, state, returnTo), { headers });
+        const loginReturnTo = popupOrigin
+          ? `/auth/google/callback?popupOrigin=${encodeURIComponent(popupOrigin)}&returnTo=${encodeURIComponent(returnTo)}`
+          : returnTo;
+        response = redirect(buildGoogleLoginUrl(req, state, loginReturnTo), { headers });
         return withCors(response, origin);
       }
 
@@ -467,11 +558,32 @@ Bun.serve({
 
         const headers = new Headers();
         appendSetCookie(headers, buildCookie(sessionCookieName, sessionToken, sessionTTL, "None"));
-        appendSetCookie(headers, clearCookie(oauthStateCookieName, "Lax"));
+        appendSetCookie(headers, clearCookie(oauthStateCookieName, "None"));
 
         const returnTo = sanitizeReturnTo(
           encodedReturnTo ? base64UrlDecode(encodedReturnTo) : "/",
         );
+
+        const popupCallback = parsePopupCallbackReturn(returnTo, req);
+
+        if (popupCallback) {
+          const popupResponse = buildAuthPopupResponse(
+            popupCallback.popupOrigin,
+            popupCallback.popupReturnTo,
+          );
+          response = new Response(popupResponse.body, {
+            status: popupResponse.status,
+            statusText: popupResponse.statusText,
+            headers: (() => {
+              const mergedHeaders = new Headers(popupResponse.headers);
+              appendResponseHeaders(mergedHeaders, headers);
+              return mergedHeaders;
+            })(),
+          });
+
+          return withCors(response, origin);
+        }
+
         response = redirect(returnTo, { headers });
         return withCors(response, origin);
       }
