@@ -92,16 +92,19 @@
 
     switch (view) {
       case 'download':
+        projectContent.parentElement.style.height = "80vh"
         viewer.style.height = '80vh'
         views.download.style.display = 'block';
         break;
 
       case 'upload':
+        projectContent.parentElement.style.height = "80vh"
         viewer.style.height = '80vh'
         views.upload.style.display = 'block';
         break;
 
       default:
+        projectContent.parentElement.style.height = "100%"
         viewer.style.height = ''
         projectContent.style.display = '';
         view = 'content';
