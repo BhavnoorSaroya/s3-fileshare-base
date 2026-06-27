@@ -14,7 +14,7 @@
   if (!projectContent) return;
 
   // So we don't scroll a tiny viewbox on mobile
-  document.getElementsByClassName("cardr")[0].style.height = '100%'
+  document.getElementsByClassName("card")[0].style.height = '100%'
 
   function createFixedControl({
     id,
