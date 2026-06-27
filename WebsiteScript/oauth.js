@@ -14,7 +14,7 @@
   if (!projectContent) return;
 
   // So we don't scroll a tiny viewbox on mobile
-  document.getElementsByClassName("embed-wrapper")[0].style.height = '100%'
+  document.getElementsByClassName("cardr")[0].style.height = '100%'
 
   function createFixedControl({
     id,
@@ -117,7 +117,7 @@
     iframe.src = src;
     iframe.style.display = 'none';
     iframe.style.width = '100%';
-    iframe.style.height = '100%';
+    iframe.style.height = '80vh';
     iframe.style.border = 'none';
     // iframe.style.overflow = 'hidden'
 
