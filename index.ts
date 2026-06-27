@@ -70,6 +70,45 @@ function withCors(res: Response, origin: string | null) {
     headers.set(key, value);
   }
 
+  headers.set("Cross-Origin-Resource-Policy", "cross-origin");
+
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
+function getContentType(pathname: string) {
+  if (pathname.endsWith(".html")) return "text/html; charset=utf-8";
+  if (pathname.endsWith(".js")) return "text/javascript; charset=utf-8";
+  if (pathname.endsWith(".css")) return "text/css; charset=utf-8";
+  if (pathname.endsWith(".json")) return "application/json; charset=utf-8";
+  if (pathname.endsWith(".wasm")) return "application/wasm";
+  if (pathname.endsWith(".svg")) return "image/svg+xml";
+  return null;
+}
+
+function withDocumentIsolation(res: Response) {
+  const headers = new Headers(res.headers);
+  headers.set("Cross-Origin-Embedder-Policy", "require-corp");
+  headers.set("Cross-Origin-Opener-Policy", "same-origin");
+
+  return new Response(res.body, {
+    status: res.status,
+    statusText: res.statusText,
+    headers,
+  });
+}
+
+function withResourcePolicy(res: Response, pathname: string) {
+  const headers = new Headers(res.headers);
+  const contentType = getContentType(pathname);
+
+  if (contentType && !headers.has("content-type")) {
+    headers.set("content-type", contentType);
+  }
+
   return new Response(res.body, {
     status: res.status,
     statusText: res.statusText,
@@ -434,7 +473,7 @@ async function serveStatic(pathname: string): Promise<Response | null> {
   const file = Bun.file(path);
 
   if (await file.exists()) {
-    return new Response(file);
+    return withResourcePolicy(new Response(file), pathname);
   }
 
   return null;
@@ -480,10 +519,10 @@ Bun.serve({
       );
     }
 
-    try {
-      const url = new URL(req.url);
-      const { pathname } = url;
-      const session = await requireSession(req);
+      try {
+        const url = new URL(req.url);
+        const { pathname } = url;
+        const session = await requireSession(req);
 
       let response: Response;
 
@@ -766,7 +805,7 @@ Bun.serve({
           },
         );
 
-        return withCors(response, origin);
+        return withCors(withDocumentIsolation(response), origin);
       }
 
       // STATIC FILES
